@@ -238,21 +238,32 @@ def main():
     elif choice == "Public games":
         st.header("Public games (demo)")
         games = get_live_games()
-        for g in games:
-            st.subheader(f'{g["away_team"]} @ {g["home_team"]} — {g["gender"]}')
-            # show computed odds using or creating teams in DB
-            conn = get_conn()
-            c = conn.cursor()
-            # ensure teams exist
-            for tname in (g["home_team"], g["away_team"]):
-                c.execute("SELECT * FROM teams WHERE name = ?", (tname,))
-                if not c.fetchone():
-                    c.execute("INSERT INTO teams (name, gender, elo) VALUES (?, ?, ?)", (tname, g["gender"], 1500))
-                    conn.commit()
-            c.execute("SELECT * FROM teams WHERE name = ?", (g["home_team"],))
-            home = c.fetchone()
-            c.execute("SELECT * FROM teams WHERE name = ?", (g["away_team"],))
-            away = c.fetchone()
+for g in games:
+    st.subheader(f'{g["away_team"]} @ {g["home_team"]} — {g["gender"]}')
+    conn = get_conn()
+    c = conn.cursor()
+
+    # --- ensure both teams exist ---
+    for tname in (g["home_team"], g["away_team"]):
+        c.execute("SELECT * FROM teams WHERE name = ?", (tname,))
+        team = c.fetchone()
+        if not team:
+            c.execute(
+                "INSERT INTO teams (name, gender, elo) VALUES (?, ?, ?)",
+                (tname, g["gender"], 1500),
+            )
+            conn.commit()
+
+    # --- fetch them again after ensuring creation ---
+    c.execute("SELECT * FROM teams WHERE name = ?", (g["home_team"],))
+    home = c.fetchone()
+    c.execute("SELECT * FROM teams WHERE name = ?", (g["away_team"],))
+    away = c.fetchone()
+
+    if not home or not away:
+        st.error("Could not find team data.")
+        continue
+
             p_home = win_prob(home["elo"], away["elo"])
             p_away = 1 - p_home
             odds_home = adjusted_odds(p_home)
